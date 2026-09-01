@@ -18,18 +18,33 @@ export default async (req) => {
   try {
     const body = await req.json();
 
+    if (!body.prompt) {
+      return Response.json(
+        { error: "Prompt kosong." },
+        { status: 400 }
+      );
+    }
+
     const parts = [
-      { text: body.prompt }
+      {
+        text: body.prompt
+      }
     ];
 
     if (body.image?.data) {
       parts.push({
         inlineData: {
-          mimeType: body.image.mimeType,
+          mimeType: body.image.mimeType || "image/jpeg",
           data: body.image.data
         }
       });
     }
+
+    const controller = new AbortController();
+
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 45000);
 
     const response = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
@@ -46,31 +61,36 @@ export default async (req) => {
               parts
             }
           ]
-        })
+        }),
+        signal: controller.signal
       }
     );
+
+    clearTimeout(timeout);
 
     const data = await response.json();
 
     if (!response.ok) {
-  return Response.json(
-    {
-      error: data?.error?.message || "Gemini API request failed",
-      status: response.status,
-      details: data
-    },
-    { status: response.status }
-  );
+      return Response.json(
+        {
+          error: data?.error?.message || "Gemini API error",
+          googleStatus: response.status
+        },
+        { status: 502 }
+      );
     }
 
     const text = data?.candidates?.[0]?.content?.parts
-      ?.map(part => part.text || "")
+      ?.map((part) => part.text || "")
       .join("")
       .trim();
 
     if (!text) {
       return Response.json(
-        { error: "Gemini tidak mengembalikan teks." },
+        {
+          error: "Gemini tidak mengembalikan teks.",
+          details: data
+        },
         { status: 502 }
       );
     }
@@ -78,8 +98,19 @@ export default async (req) => {
     return Response.json({ text });
 
   } catch (error) {
+    if (error.name === "AbortError") {
+      return Response.json(
+        {
+          error: "Gemini terlalu lama merespons. Request dihentikan setelah 45 detik."
+        },
+        { status: 504 }
+      );
+    }
+
     return Response.json(
-      { error: error.message || "Server error" },
+      {
+        error: error.message || "Server error"
+      },
       { status: 500 }
     );
   }
