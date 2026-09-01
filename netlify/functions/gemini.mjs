@@ -53,14 +53,14 @@ export default async (req) => {
     const data = await response.json();
 
     if (!response.ok) {
-      return Response.json(
-        {
-          error:
-            data?.error?.message ||
-            `Gemini API error ${response.status}`
-        },
-        { status: response.status }
-      );
+  return Response.json(
+    {
+      error: data?.error?.message || "Gemini API request failed",
+      status: response.status,
+      details: data
+    },
+    { status: 502 }
+  );
     }
 
     const text = data?.candidates?.[0]?.content?.parts
