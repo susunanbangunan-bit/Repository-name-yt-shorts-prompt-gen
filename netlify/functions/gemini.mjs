@@ -59,7 +59,7 @@ export default async (req) => {
       status: response.status,
       details: data
     },
-    { status: 502 }
+    { status: response.status }
   );
     }
 
